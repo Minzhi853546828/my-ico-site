@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ICO Wallet Connect</title>
+  <script src="https://cdn.jsdelivr.net/npm/ethers/dist/ethers.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@walletconnect/web3-provider"></script>
+  <script src="https://cdn.jsdelivr.net/npm/web3modal"></script>
+  <script src="https://cdn.jsdelivr.net/npm/fortmatic"></script>
+  <script src="https://cdn.jsdelivr.net/npm/authereum"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@toruslabs/torus-embed"></script>
+</head>
+<body>
+  <button id="connectWalletButton">Connect Wallet</button>
+  <div id="paymentForm" style="display:none;">
+    <select id="networkSelect">
+      <option value="ethereum">Ethereum</option>
+      <option value="bsc">Binance Smart Chain</option>
+      <option value="polygon">Polygon</option>
+      <option value="avalanche">Avalanche</option>
+    </select>
+    <select id="tokenSelect">
+      <option value="ETH">ETH</option>
+      <option value="USDT">USDT</option>
+      <option value="USDC">USDC</option>
+      <option value="DAI">DAI</option>
+      <option value="LINK">LINK</option>
+    </select>
+    <input type="number" id="amountInput" placeholder="Amount" step="0.01">
+    <button id="payButton">Pay</button>
+  </div>
+
+  <script>
+    const providerOptions = {
+      walletconnect: {
+        package: WalletConnectProvider,
+        options: {
+          infuraId: 'ed12fbd3e1f24dcd927a0ef7b935cba8' // 替换为你的Infura ID
+        }
+      },
+      fortmatic: {
+        package: Fortmatic,
+        options: {
+          key: 'pk_live_963E9895345ACDFB' // 替换为你的Fortmatic Publishable Key
+        }
+      },
+      authereum: {
+        package: Authereum,
+        options: {}
+      },
+      torus: {
+        package: Torus,
+        options: {}
+      }
+    };
+
+    const web3Modal = new Web3Modal({
+      cacheProvider: true,
+      providerOptions
+    });
+
+    let provider;
+    let signer;
+
+    const networkConfigs = {
+      ethereum: {
+        rpcUrl: 'ed12fbd3e1f24dcd927a0ef7b935cba8', // 替换为你的Infura ID
+        chainId: 1,
+        tokenAddresses: {
+          USDT: '0xdAC17F958D2ee523a2206206994597C13D831ec7',
+          USDC: '0xA0b86991c6218b36c1d19D4a2e9eb0cE3606eb48',
+          DAI: '0x6B175474E89094C44Da98b954EedeAC495271d0F',
+          LINK: '0x514910771AF9Ca656af840dff83E8264EcF986CA'
+        },
+        decimals: {
+          USDT: 6,
+          USDC: 6,
+          DAI: 18,
+          LINK: 18
+        }
+      },
+      bsc: {
+        rpcUrl: 'https://bsc-dataseed.binance.org/',
+        chainId: 56,
+        tokenAddresses: {
+          USDT: '0x55d398326f99059ff775485246999027b3197955',
+          USDC: '0x8ac76a51cc950d9822d68b83fe1ad97b32cd580d',
+          DAI: '0x1AF3F329e8BE154074D8769D1FFa4eE058B1DBc3',
+          LINK: '0xF8A0BF9cF54Bb92F17374d9e9A321E6a111a51bD'
+        },
+        decimals: {
+          USDT: 18,
+          USDC: 18,
+          DAI: 18,
+          LINK: 18
+        }
+      },
+      // 其他网络配置类似
+    };
+
+    document.getElementById('connectWalletButton').addEventListener('click', async () => {
+      try {
+        const instance = await web3Modal.connect();
+        provider = new ethers.providers.Web3Provider(instance);
+        signer = provider.getSigner();
+        const address = await signer.getAddress();
+        alert('Connected to wallet: ' + address);
+
+        document.getElementById('paymentForm').style.display = 'block';
+      } catch (error) {
+        console.error('User rejected the request', error);
+      }
+    });
+
+    document.getElementById('payButton').addEventListener('click', async () => {
+      if (signer) {
+        try {
+          const network = document.getElementById('networkSelect').value;
+          const token = document.getElementById('tokenSelect').value;
+          const amount = document.getElementById('amountInput').value;
+          const receiverAddress = 'your-ico-wallet-address';
+
+          const networkConfig = networkConfigs[network];
+          const tokenAddress = networkConfig.tokenAddresses[token];
+          const decimals = networkConfig.decimals[token];
+
+          if (network !== 'ethereum') {
+            provider = new ethers.providers.JsonRpcProvider(networkConfig.rpcUrl);
+            signer = provider.getSigner();
+          }
+
+          let transaction;
+          if (token === 'ETH') {
+            transaction = await signer.sendTransaction({
+              to: receiverAddress,
+              value: ethers.utils.parseEther(amount)
+            });
+          } else {
+            const erc20Abi = ["function transfer(address to, uint amount) returns (bool)"];
+            const tokenContract = new ethers.Contract(tokenAddress, erc20Abi, signer);
+            const amountInWei = ethers.utils.parseUnits(amount, decimals);
+            transaction = await tokenContract.transfer(receiverAddress, amountInWei);
+          }
+          alert('Transaction sent: ' + transaction.hash);
+        } catch (error) {
+          console.error('Transaction failed', error);
+        }
+      } else {
+        alert('Please connect your wallet first.');
+      }
+    });
+  </script>
+</body>
+</html>
